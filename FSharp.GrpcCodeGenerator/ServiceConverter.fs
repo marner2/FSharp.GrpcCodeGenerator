@@ -286,6 +286,9 @@ let writeServiceBinderClass (ctx: FileContext, svc: Service) =
             {serverMethodTypeName (methodType method)}<{inputType.Value}, {outputType.Value}>(\
             serviceImpl.{methodName method}))"
     ctx.Writer.Outdent()
+
+    ctx.Writer.WriteLine $"static member Descriptor : global.Google.Protobuf.Reflection.ServiceDescriptor = \
+        global.{Helpers.fileNamespace ctx.File}.{serviceClassName svc}.Descriptor"
     ctx.Writer.Outdent()
 
 let writeService (ctx: FileContext, svc: Service) =
