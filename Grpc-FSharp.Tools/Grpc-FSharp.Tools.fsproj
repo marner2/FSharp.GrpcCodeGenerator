@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net45;netstandard2.0</TargetFrameworks>
+    <TargetFrameworks>net48;netstandard2.0</TargetFrameworks>
     <RootNamespace>Grpc.FSharp.Tools</RootNamespace>
     <Version>$(PackageVersion)</Version>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -37,8 +37,8 @@
     but before NuGet generates a nuspec. See https://github.com/NuGet/Home/issues/4704.
     -->
     <ItemGroup>
-      <_PackageFiles Include="bin\$(Configuration)\net45\FSharp.Core.dll">
-        <PackagePath>build\_protobuf\net45</PackagePath>
+      <_PackageFiles Include="bin\$(Configuration)\net48\FSharp.Core.dll">
+        <PackagePath>build\_protobuf\net48</PackagePath>
         <Visible>false</Visible>
         <BuildAction>Content</BuildAction>
       </_PackageFiles>
@@ -77,14 +77,14 @@
     <Compile Include="ProtoCompile.fs" />
   </ItemGroup>
 
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net45' ">
+  <ItemGroup Condition=" '$(TargetFramework)' == 'net48' ">
     <Reference Include="Microsoft.Build.Framework; Microsoft.Build.Utilities.v4.0" Pack="false" />
     <PackageReference Update="System.ValueTuple" Version="4.5.0" />
   </ItemGroup>
-  <PropertyGroup Condition=" '$(TargetFramework)' == 'net45' ">
+  <PropertyGroup Condition=" '$(TargetFramework)' == 'net48' ">
     <FSharpCoreImplicitPackageVersion>4.7.0</FSharpCoreImplicitPackageVersion>
   </PropertyGroup>
-  <ItemGroup Condition=" '$(TargetFramework)' != 'net45' ">
+  <ItemGroup Condition=" '$(TargetFramework)' != 'net48' ">
     <PackageReference Include="Microsoft.Build.Framework; Microsoft.Build.Utilities.Core" Version="15.6.*" />
     <!--  Set PrivateAssets="All" on all items, even those implicitly added,
           so that they do not become dependencies of this package. -->
