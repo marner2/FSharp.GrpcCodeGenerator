@@ -21,7 +21,7 @@ let rec writeGeneratedCodeInfo (ctx: FileContext, outerTypeName: string, msg: Me
     | _ ->
 
     let typeName = Helpers.qualifiedInnerName(msg.Name.Value, outerTypeName, ctx.File)
-    ctx.Writer.Write $"new global.Google.Protobuf.Reflection.GeneratedClrTypeInfo(typeof<{typeName}>, {typeName}.Parser, "
+    ctx.Writer.Write $"new global.Google.Protobuf.Reflection.GeneratedClrTypeInfo(typeof<{typeName}Clr>, {typeName}Clr.Parser, "
 
     if msg.Field.Count > 0
     then

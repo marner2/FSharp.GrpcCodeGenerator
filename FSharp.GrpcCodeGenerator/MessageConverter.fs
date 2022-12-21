@@ -82,6 +82,65 @@ let writeMessageInterfaces (ctx: MessageContext) =
     ctx.File.Writer.WriteLine $"member __.Descriptor = {Helpers.reflectionClassName ctx.File.File}.{Helpers.descriptorName (ctx.Message, ctx.ContainerMessages)}()"
     ctx.File.Writer.Outdent()
 
+
+let writeClrMessageInterfaces (ctx: MessageContext) =
+    ctx.File.Writer.WriteLine "interface global.Google.Protobuf.IBufferMessage with"
+    ctx.File.Writer.Indent()
+    Helpers.writeGeneratedCodeAttribute ctx.File
+    ctx.File.Writer.WriteLine "member me.InternalMergeFrom(ctx) = (me.Backer :> global.Google.Protobuf.IBufferMessage).InternalMergeFrom(&ctx)"
+    Helpers.writeGeneratedCodeAttribute ctx.File
+    ctx.File.Writer.WriteLine "member me.InternalWriteTo(ctx) = (me.Backer :> global.Google.Protobuf.IBufferMessage).InternalWriteTo(&ctx)"
+    ctx.File.Writer.Outdent()
+
+    let typeName = typeName ctx
+
+    if hasExtensionRange ctx
+    then ctx.File.Writer.WriteLine $"interface global.Google.Protobuf.IExtendableMessage<{typeName}Clr> with"
+    else ctx.File.Writer.WriteLine $"interface global.Google.Protobuf.IMessage<{typeName}Clr> with"
+
+    ctx.File.Writer.Indent()
+    Helpers.writeGeneratedCodeAttribute ctx.File
+    ctx.File.Writer.WriteLine $"member me.Clone() = (me.Backer :> global.Google.Protobuf.IMessage<{typeName}>).Clone() |> {typeName}Clr"
+    Helpers.writeGeneratedCodeAttribute ctx.File
+    ctx.File.Writer.WriteLine $"member me.MergeFrom(other) = (me.Backer :> global.Google.Protobuf.IMessage<{typeName}>).MergeFrom(other.Backer)"
+    
+    if hasExtensionRange ctx
+    then
+        ctx.File.Writer.WriteLines [
+            "[<global.System.Diagnostics.DebuggerNonUserCodeAttribute>]"
+            "member me.ClearExtension(extension: global.Google.Protobuf.Extension<_,'TValue>) = global.Google.Protobuf.ExtensionSet.Clear(&me._Extensions, extension)"
+            "[<global.System.Diagnostics.DebuggerNonUserCodeAttribute>]"
+            "member me.ClearExtension(extension: global.Google.Protobuf.RepeatedExtension<_,'TValue>) = global.Google.Protobuf.ExtensionSet.Clear(&me._Extensions, extension)"
+            "[<global.System.Diagnostics.DebuggerNonUserCodeAttribute>]"
+            "member me.GetExtension(extension: global.Google.Protobuf.Extension<_,'TValue>) = global.Google.Protobuf.ExtensionSet.Get(&me._Extensions, extension)"
+            "[<global.System.Diagnostics.DebuggerNonUserCodeAttribute>]"
+            "member me.GetExtension(extension: global.Google.Protobuf.RepeatedExtension<_,'TValue>) = global.Google.Protobuf.ExtensionSet.Get(&me._Extensions, extension)"
+            "[<global.System.Diagnostics.DebuggerNonUserCodeAttribute>]"
+            "member me.GetOrInitializeExtension(extension) = global.Google.Protobuf.ExtensionSet.GetOrInitialize(&me._Extensions, extension)"
+            "[<global.System.Diagnostics.DebuggerNonUserCodeAttribute>]"
+            "member me.HasExtension(extension) = global.Google.Protobuf.ExtensionSet.Has(&me._Extensions, extension)"
+            "[<global.System.Diagnostics.DebuggerNonUserCodeAttribute>]"
+            "member me.SetExtension(extension, value) = global.Google.Protobuf.ExtensionSet.Set(&me._Extensions, extension, value)"
+        ]
+
+    ctx.File.Writer.Outdent()
+    ctx.File.Writer.WriteLine "interface global.Google.Protobuf.IMessage with"
+    ctx.File.Writer.Indent()
+    Helpers.writeGeneratedCodeAttribute ctx.File
+    ctx.File.Writer.WriteLine "member me.CalculateSize() = (me.Backer :> global.Google.Protobuf.IMessage).CalculateSize()"
+    Helpers.writeGeneratedCodeAttribute ctx.File
+    ctx.File.Writer.WriteLine "member me.MergeFrom(input) = input.ReadRawMessage(me)"
+    Helpers.writeGeneratedCodeAttribute ctx.File
+    ctx.File.Writer.WriteLine "member me.WriteTo(output) = output.WriteRawMessage(me)"
+    Helpers.writeGeneratedCodeAttribute ctx.File
+    ctx.File.Writer.WriteLine $"member __.Descriptor = {Helpers.reflectionClassName ctx.File.File}.{Helpers.descriptorName (ctx.Message, ctx.ContainerMessages)}()"
+    ctx.File.Writer.Outdent()
+    ctx.File.Writer.WriteLine $"interface global.System.IEquatable<{typeName}Clr> with"
+    ctx.File.Writer.Indent()
+    Helpers.writeGeneratedCodeAttribute ctx.File
+    ctx.File.Writer.WriteLine $"member me.Equals(other: {typeName}Clr): bool = me.Backer.Equals(other.Backer)"
+    ctx.File.Writer.Outdent()
+
 let writeCloneMethod (ctx: MessageContext) =
     Helpers.writeGeneratedCodeAttribute ctx.File
     ctx.File.Writer.WriteLine $"member me.Clone() : {typeName ctx} = {{"
@@ -407,3 +466,36 @@ and writeMessage (ctx: FileContext, containerMessages: Message list, msg: Messag
     ctx.File.Writer.Outdent()
 
     writeMessageModule ctx
+
+    ctx.File.Writer.WriteLine "[<global.Microsoft.FSharp.Core.AllowNullLiteral>]"
+    ctx.File.Writer.WriteLine $"type {Helpers.accessSpecifier ctx.File}{typeName ctx}Clr(initialBacker: {typeName ctx}) ="
+    ctx.File.Writer.Indent()
+    
+    ctx.File.Writer.WriteLine $"let mutable backer: {typeName ctx} = initialBacker"
+    ctx.File.Writer.WriteLine $"new() = {typeName ctx}Clr({typeName ctx}.DefaultValue)"
+    ctx.File.Writer.WriteLine "member val Backer = backer with get"
+    ctx.File.Writer.WriteLine $"static member Parser = global.Google.Protobuf.MessageParser<{typeName ctx}Clr>(global.System.Func<_>({typeName ctx}Clr))"
+    ctx.File.Writer.WriteLine $"static member Descriptor = {Helpers.reflectionClassName ctx.File.File}.{Helpers.descriptorName (ctx.Message, ctx.ContainerMessages)}()"
+    writeClrMessageInterfaces ctx
+    for f in ctx.OrderedFSFields do
+        let conv = FieldConverterFactory.createWriter (f, ctx.File, Some ctx.Message, ctx.ContainerMessages)
+        conv.WriteClrPassthrough ctx.File "backer"
+
+    let oneOfFields =
+        ctx.OrderedFSFields
+        |> Seq.choose (function Single _ -> None | OneOf (o, f, true) -> None | OneOf (o, f, false) -> Some (o, f))
+    for (oneOf, fields) in oneOfFields do
+        let oneOfName = FieldConverter.oneOfPropertyName oneOf
+        
+        Helpers.writeGeneratedCodeAttribute ctx.File
+        ctx.File.Writer.WriteLine $"member me.{oneOfName}Case = me.Backer.{oneOfName}Case"
+        for field in fields do
+            Helpers.writeGeneratedCodeAttribute ctx.File
+            ctx.File.Writer.WriteLine $"member me.{FieldConverter.propertyName (ctx.Message, field)}"
+            ctx.File.Writer.Indent()
+
+            ctx.File.Writer.WriteLine $"with get() = me.Backer.{FieldConverter.propertyName (ctx.Message, field)}"
+            ctx.File.Writer.WriteLine $"and set(v) = me.Backer.{FieldConverter.propertyName (ctx.Message, field)} <- v"
+            ctx.File.Writer.Outdent()
+
+    ctx.File.Writer.Outdent()

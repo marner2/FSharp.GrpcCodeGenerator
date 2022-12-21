@@ -23,6 +23,7 @@ type FieldWriter = {
     WriteCodecCode: FileContext -> unit
     WriteExtensionCode: FileContext -> unit
     WriteOneOfCase: FileContext -> unit
+    WriteClrPassthrough: FileContext -> string -> unit
 }
 
 let addDeprecatedFlag (ctx: FileContext, field: Field) =
@@ -264,6 +265,7 @@ let NotImplementedWriter = {
     WriteSerializationCodeWithoutCheck = fun _ _ -> raise <| System.NotImplementedException()
     WriteCodecCode = fun _ -> raise <| System.NotImplementedException()
     WriteExtensionCode = fun _ -> raise <| System.NotImplementedException()
+    WriteClrPassthrough = fun _ -> raise <| System.NotImplementedException()
 }
 
 module PrimitiveFieldConverter =
@@ -350,6 +352,23 @@ module PrimitiveFieldConverter =
         writeCodecCode (field) ctx
         ctx.Writer.WriteLine ")"
 
+    let writeClrPassthrough (field: Field, containingType: Message) (ctx: FileContext) (backingFieldName: string) =
+        let propertyName = propertyName (containingType, field)
+        if needsOptionType (ctx, field) then
+            ctx.Writer.WriteLine $"member _.{propertyName}"
+            ctx.Writer.Indent()
+            ctx.Writer.WriteLine $"with get() = {backingFieldName}.{propertyName} |> ValueOption.defaultWith (fun () -> Unchecked.defaultof<_>)"
+            ctx.Writer.WriteLine $"and set(v) = {backingFieldName} <- {{ {backingFieldName} with {propertyName} = ValueSome v }}"
+            ctx.Writer.Outdent()
+            ctx.Writer.WriteLine $"member _.Has{propertyName} = {backingFieldName}.{propertyName} <> ValueNone"
+            ctx.Writer.WriteLine $"member _.Clear{propertyName}() = {backingFieldName} <- {{ {backingFieldName} with {propertyName} = ValueNone }}"
+        else
+            ctx.Writer.WriteLine $"member _.{propertyName}"
+            ctx.Writer.Indent()
+            ctx.Writer.WriteLine $"with get() = {backingFieldName}.{propertyName}"
+            ctx.Writer.WriteLine $"and set(v) = {backingFieldName} <- {{ {backingFieldName} with {propertyName} = v }}"
+            ctx.Writer.Outdent()
+
     let create (field: Field, containingType: Message option) =
         match containingType with
         | Some t ->
@@ -368,6 +387,7 @@ module PrimitiveFieldConverter =
                 WriteModuleMembers = ignore
                 WriteCodecCode = writeCodecCode (field)
                 WriteExtensionCode = writeExtensionCode (field, Some(t))
+                WriteClrPassthrough = writeClrPassthrough (field, t)
             }
         | None ->
             { NotImplementedWriter with
@@ -439,6 +459,10 @@ module RepeatedPrimitiveFieldConverter =
         writeCodecCode field ctx
         ctx.Writer.WriteLine ""
 
+    let writeClrPassthrough (field: Field, containingType: Message) (ctx: FileContext) (backingFieldName: string) =
+        let propertyName = propertyName (containingType, field)
+        ctx.Writer.WriteLine $"member _.{propertyName} = {backingFieldName}.{propertyName}"
+
     let create (field: Field, containingType: Message option) =
         match containingType with
         | Some t ->
@@ -457,6 +481,7 @@ module RepeatedPrimitiveFieldConverter =
                 WriteModuleMembers = writeModuleMembers (field, t)
                 WriteCodecCode = writeCodecCode field
                 WriteExtensionCode = writeExtensionCode (field, Some(t))
+                WriteClrPassthrough = writeClrPassthrough (field, t)
             }
         | None ->
             { NotImplementedWriter with
@@ -539,6 +564,7 @@ module EnumFieldConverter =
                 WriteModuleMembers = ignore
                 WriteCodecCode = writeCodecCode(field)
                 WriteExtensionCode = writeExtensionCode (field, Some(t))
+                WriteClrPassthrough = PrimitiveFieldConverter.writeClrPassthrough (field, t)
             }
         | None ->
             { NotImplementedWriter with
@@ -587,6 +613,7 @@ module RepeatedEnumFieldConverter =
                 WriteModuleMembers = writeModuleMembers (field, t)
                 WriteCodecCode = writeCodecCode field
                 WriteExtensionCode = writeExtensionCode (field, Some(t))
+                WriteClrPassthrough = RepeatedPrimitiveFieldConverter.writeClrPassthrough (field, t)
             }
         | None ->
             { NotImplementedWriter with
@@ -693,6 +720,16 @@ module MessageFieldConverter =
         writeCodecCode (field, containingType, containerMessages) ctx
         ctx.Writer.WriteLine ")"
 
+    let writeClrPassthrough (field: Field, containingType: Message) (ctx: FileContext) (backingFieldName: string) =
+        let propertyName = propertyName (containingType, field)
+        ctx.Writer.WriteLine $"member _.{propertyName}"
+        ctx.Writer.Indent()
+        ctx.Writer.WriteLine $"with get() = {backingFieldName}.{propertyName} |> ValueOption.map {typeNameWithoutOption (ctx, field)}Clr |> ValueOption.defaultWith (fun () -> null)"
+        ctx.Writer.WriteLine $"and set(v: {typeNameWithoutOption (ctx, field)}Clr) = {backingFieldName} <- {{ {backingFieldName} with {propertyName} = if v = null then ValueNone else ValueSome v.Backer }}"
+        ctx.Writer.Outdent()
+        ctx.Writer.WriteLine $"member _.Has{propertyName} = {backingFieldName}.{propertyName} <> ValueNone"
+        ctx.Writer.WriteLine $"member _.Clear{propertyName}() = {backingFieldName} <- {{ {backingFieldName} with {propertyName} = ValueNone }}"
+
     let create (field: Field, containingType: Message option, containerMessages: Message list) =
         match containingType with
         | Some t ->
@@ -711,6 +748,7 @@ module MessageFieldConverter =
                 WriteModuleMembers = ignore
                 WriteCodecCode = writeCodecCode (field, Some(t), containerMessages)
                 WriteExtensionCode = writeExtensionCode (field, Some(t), containerMessages)
+                WriteClrPassthrough = writeClrPassthrough (field, t)
             }
         | None ->
             { NotImplementedWriter with
@@ -756,6 +794,7 @@ module RepeatedMessageFieldConverter =
                 WriteModuleMembers = writeModuleMembers (field, t, containerMessages)
                 WriteCodecCode = MessageFieldConverter.writeCodecCode (field, Some(t), containerMessages)
                 WriteExtensionCode = writeExtensionCode (field, Some(t), containerMessages)
+                WriteClrPassthrough = RepeatedPrimitiveFieldConverter.writeClrPassthrough (field, t)
             }
         | None ->
             { NotImplementedWriter with
@@ -865,6 +904,7 @@ module MapFieldConverter =
                 WriteModuleMembers = writeModuleMembers (field, t, containerMessages)
                 WriteCodecCode = writeCodecCode (field, t, containerMessages)
                 WriteExtensionCode = writeExtensionCode (field, Some(t))
+                WriteClrPassthrough = RepeatedPrimitiveFieldConverter.writeClrPassthrough (field, t)
             }
         | None ->
             { NotImplementedWriter with
@@ -945,6 +985,12 @@ module OneOfFieldConverter =
             conv.WriteSerializationCodeWithoutCheck ctx "x"
             ctx.Writer.Outdent()
 
+    let writeClrPassthrough (oneOf: OneOf, fields: Field list, containingType: Message, containerMessages: Message list) (ctx: FileContext) (backingFieldName: string) =
+        let propertyName = oneOfPropertyName oneOf
+        ctx.Writer.WriteLine $"member _.{propertyName} = {backingFieldName}.{propertyName}"
+        ctx.Writer.WriteLine $"member _.Has{propertyName} = {backingFieldName}.{propertyName} <> ValueNone"
+        ctx.Writer.WriteLine $"member _.Clear{propertyName}() = {backingFieldName} <- {{ {backingFieldName} with {propertyName} = ValueNone }}"
+
     let create (oneOf: OneOf, fields: Field list, containingType: Message option, containerMessages: Message list) =
         match containingType with
         | Some t ->
@@ -963,6 +1009,7 @@ module OneOfFieldConverter =
                 WriteModuleMembers = ignore
                 WriteCodecCode = fun _ -> invalidOp "One of codec not supported"
                 WriteExtensionCode = fun _ -> invalidOp "One of extension not supported"
+                WriteClrPassthrough = writeClrPassthrough (oneOf, fields, t, containerMessages)
             }
         | None ->
             { NotImplementedWriter with
