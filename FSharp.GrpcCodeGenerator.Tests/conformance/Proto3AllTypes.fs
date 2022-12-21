@@ -334,3 +334,87 @@ let ``FSharp default message should contain same values as csharp default messag
     Assert.Equal(fsharp.RepeatedPublicImportMessage.Count, csharp.RepeatedPublicImportMessage.Count)
     Assert.Equal(fsharp.OneofField, ValueNone)
     
+[<Fact>]
+let ``FSharp message should parse to same json as csharp json`` () =
+    let nestedMessage : FSharp.TestAllTypes.Types.NestedMessage = { Bb = 3; _UnknownFields = null }
+
+    let foreignMessage : FSharp.ForeignMessage = { _UnknownFields = null; C = 123 }
+
+    let importMessage : FSharp.ImportMessage = { _UnknownFields = null; D = 456 }
+
+    let publicImportMessage : FSharp.PublicImportMessage = { _UnknownFields = null; E = 789 }
+
+    let fsharp : FSharp.TestAllTypes =
+        { _UnknownFields = null
+          SingleInt32 = 1
+          SingleInt64 = 2L
+          SingleUint32 = 3u
+          SingleUint64 = 4uL
+          SingleSint32 = 5
+          SingleSint64 = 6L
+          SingleFixed32 = 7u
+          SingleFixed64 = 8uL
+          SingleSfixed32 = 9
+          SingleSfixed64 = 10L
+          SingleFloat = 11.0f
+          SingleDouble = 12.0
+          SingleBool = true
+          SingleString = "Yo"
+          SingleBytes = ByteString.FromBase64("eW8=")
+          SingleNestedMessage = ValueSome(nestedMessage)
+          SingleForeignMessage = ValueSome(foreignMessage)
+          SingleImportMessage = ValueSome(importMessage)
+          SingleNestedEnum = FSharp.TestAllTypes.Types.NestedEnum.Foo
+          SingleForeignEnum = FSharp.ForeignEnum.ForeignBaz
+          SingleImportEnum = FSharp.ImportEnum.ImportBaz
+          SinglePublicImportMessage = ValueSome(publicImportMessage)
+          RepeatedInt32 = repeatedField [ 1; 2; 3 ]
+          RepeatedInt64 = repeatedField [ 4L; 5L; 6L ]
+          RepeatedUint32 = repeatedField [ 7u; 8u; 9u ]
+          RepeatedUint64 = repeatedField [ 10uL; 11uL; 12uL ]
+          RepeatedSint32 = repeatedField [ 13; 14; 15 ]
+          RepeatedSint64 = repeatedField [ 16L; 17L; 18L ]
+          RepeatedFixed32 = repeatedField [ 19u; 20u; 21u ]
+          RepeatedFixed64 = repeatedField [ 22uL; 23uL; 24uL ]
+          RepeatedSfixed32 = repeatedField [ 25; 26; 27 ]
+          RepeatedSfixed64 = repeatedField [ 28L; 29L; 30L ]
+          RepeatedFloat = repeatedField [ 31.0f; 32.0f; 33.0f ]
+          RepeatedDouble = repeatedField [ 34.0; 35.0; 36.0 ]
+          RepeatedBool = repeatedField [ true; false; true ]
+          RepeatedString = repeatedField [ "Yo"; "Yo"; "Yo" ]
+          RepeatedBytes =
+              repeatedField [ ByteString.FromBase64("eW8=")
+                              ByteString.FromBase64("eW8=")
+                              ByteString.FromBase64("eW8=") ]
+          RepeatedNestedMessage =
+              repeatedField [ nestedMessage
+                              nestedMessage
+                              nestedMessage ]
+          RepeatedForeignMessage =
+              repeatedField [ foreignMessage
+                              foreignMessage
+                              foreignMessage ]
+          RepeatedImportMessage =
+              repeatedField [ importMessage
+                              importMessage
+                              importMessage ]
+          RepeatedNestedEnum =
+              repeatedField [ FSharp.TestAllTypes.Types.NestedEnum.Foo
+                              FSharp.TestAllTypes.Types.NestedEnum.Foo
+                              FSharp.TestAllTypes.Types.NestedEnum.Foo ]
+          RepeatedForeignEnum =
+              repeatedField [ FSharp.ForeignEnum.ForeignBaz
+                              FSharp.ForeignEnum.ForeignBaz
+                              FSharp.ForeignEnum.ForeignBaz ]
+          RepeatedImportEnum =
+              repeatedField [ FSharp.ImportEnum.ImportBaz
+                              FSharp.ImportEnum.ImportBaz
+                              FSharp.ImportEnum.ImportBaz ]
+          RepeatedPublicImportMessage =
+              repeatedField [ publicImportMessage
+                              publicImportMessage
+                              publicImportMessage ]
+          OneofField = ValueSome(TestAllTypes.Types.OneofUint32(777u)) }
+
+    let output = fsharp |> TestAllTypesClr |> Google.Protobuf.JsonFormatter.Default.Format
+    printf "%s" output
